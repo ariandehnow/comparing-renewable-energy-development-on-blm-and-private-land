@@ -1,0 +1,270 @@
+---
+title: "Comparing Renewable Energy Development on BLM and Private Land"
+author: "Arian Dehnow"
+date: "2023-11-27"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    template: "my-template.tex"
+    extra_dependencies:
+    - booktabs
+    - adjustbox
+    keep_tex: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Clear workspace.
+rm(list=ls())
+gc()
+```
+
+```{r packages, include = FALSE}
+# Download required packages.
+update.packages(repos = "http://cran.us.r-project.org")
+if(!require("R.utils")) install.packages("R.utils", repos = "http://cran.us.r-project.org")
+if(!require("plyr")) install.packages("plyr", repos = "http://cran.us.r-project.org")
+if(!require("dplyr")) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require("sf")) install.packages("sf", repos = "http://cran.us.r-project.org")
+if(!require("raster")) install.packages("raster", repos = "http://cran.us.r-project.org")
+if(!require("exactextractr")) install.packages("exactextractr", repos = "http://cran.us.r-project.org")
+if(!require("ggplot2")) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require("viridis")) install.packages("viridis", repos = "http://cran.us.r-project.org")
+if(!require("tmap")) install.packages("tmap", repos = "http://cran.us.r-project.org")
+if(!require("RColorBrewer")) install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
+if(!require("shinyjs")) install.packages("shinyjs", repos = "http://cran.us.r-project.org")
+if(!require("leaflet")) install.packages("leaflet", repos = "http://cran.us.r-project.org") 
+if(!require("dplyr")) install.packages("dplyr", repos = "http://cran.us.r-project.org") 
+if(!require("sf")) install.packages("sf", repos = "http://cran.us.r-project.org") 
+if(!require("osmdata")) install.packages("osmdata", repos = "http://cran.us.r-project.org")
+if(!require("ggplot2")) install.packages("ggplot2", repos = "http://cran.us.r-project.org") 
+if(!require("ggmap")) install.packages("ggmap", repos = "http://cran.us.r-project.org")
+if(!require("RColorBrewer")) install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
+if(!require("lintr")) install.packages("lintr", repos = "http://cran.us.r-project.org")
+if(!require("cowplot")) install.packages("cowplot", repos = "http://cran.us.r-project.org")
+if(!require("tidyr")) install.packages("tidyr", repos = "http://cran.us.r-project.org")
+if(!require("tidyverse")) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require("broom")) install.packages("broom", repos = "http://cran.us.r-project.org")
+if(!require("BAMMtools")) install.packages("BAMMtools", repos = "http://cran.us.r-project.org")
+if(!require("basemaps")) install.packages("basemaps", repos = "http://cran.us.r-project.org")
+if(!require("gstat")) install.packages("gstat", repos = "http://cran.us.r-project.org")
+if(!require("fixest")) install.packages("fixest", repos = "http://cran.us.r-project.org")
+if(!require("car")) install.packages("car", repos = "http://cran.us.r-project.org")
+if(!require("spdep")) install.packages("spdep", repos = "http://cran.us.r-project.org")
+if(!require("stars")) install.packages("stars", repos = "http://cran.us.r-project.org")
+if(!require("plm")) install.packages("plm", repos = "http://cran.us.r-project.org")
+if(!require("modelr")) install.packages("modelr", repos = "http://cran.us.r-project.org")
+if(!require("foreign")) install.packages("foreign", repos = "http://cran.us.r-project.org")
+if(!require("gplots")) install.packages("gplots", repos = "http://cran.us.r-project.org")
+if(!require("stargazer")) install.packages("stargazer", repos = "http://cran.us.r-project.org")
+if(!require("tinytex")) install.packages("tinytex", repos = "http://cran.us.r-project.org")
+if(!require("pdftools")) install.packages("pdftools", repos = "http://cran.us.r-project.org")
+if(!require("formatR")) install.packages("formatR", repos = "http://cran.us.r-project.org")
+
+library(gstat)
+library(tidyr)
+library(rgdal)
+library(rstudioapi)
+library(shinyjs)
+library(sf)
+library(plyr)
+library(raster)
+library(dplyr)
+library(spData)
+library(rgdal)
+library(raster)
+library(rgeos)
+library(tmap)
+library(ggplot2)
+library(ggmap)
+library(magrittr)
+library(lintr)
+library(tidyverse)
+library(viridis) # viridis color scale
+library(cowplot) # stack ggplots
+library(rmarkdown)
+library(ggspatial) #use to add arrow and scale bar
+library(raster)
+library(rgeos)
+library(mapview)
+library(gstat)
+library(fixest)
+library(lwgeom)
+library(car)
+library(spdep)
+library(stars)
+library(plm)
+library(modelr)
+library(foreign)
+library(gplots)
+library(stargazer)
+library(tinytex)
+library(pdftools)
+library(formatR)
+
+setwd("/Users/arian/coding_sample")
+df <- file.path("/Users/arian/coding_sample")
+
+```
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+
+# The style of the table
+my_style = style.tex("aer", model.format = "(i)")
+
+# markdown = TRUE is only useful in Rmarkdown documents
+setFixest_etable(style.tex = my_style, markdown = TRUE, page.width = "a4")
+
+```
+
+### Import 25-square-kilometer spatial grid that combines spatial data on land ownership and solar and wind energy suitability with a panel data set on solar and wind generators installed across the western states from 1975-2020.
+
+```{r prepare data, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_long <- read_csv(file.path(df, "grid_25km2_long_081622.csv"))
+
+```
+
+### Create factor variables.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_long$year=as.factor(grid_long$year)
+grid_long$state=as.factor(grid_long$state)
+grid_long$county=as.factor(grid_long$county)
+grid_long$rent_zone_16_20=as.factor(grid_long$rent_zone_16_20)
+```
+
+### Create a dummy variable for Designated Leasing Area (DLA) if a grid cell is classified as DFA, REDA, or SEZ. 
+
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_long <- grid_long %>%
+  mutate(DLA = ifelse(DFA==1|REDA==1|SEZ==1,1,0))
+```
+
+### Filter data set to only cells containing BLM and private land and convert decimal percentages to integers. 
+
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_blm <- grid_long %>%
+  filter(BLM == 1 | Private==1) %>%
+  rename(percent_blm = perc_blm) %>%
+  mutate(percent_public = percent_public * 100) %>%
+  mutate(percent_blm = percent_blm * 100) %>%
+  mutate(percent_dla = percent_dla * 100) %>%
+  mutate(percent_solar_exc = percent_solar_exc * 100) %>%
+  mutate(percent_wind_exc = percent_wind_exc * 100) %>%
+  drop_na(county)
+```
+
+### Subset to observations from 2005-2020
+```{r 2005, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_2005 <- grid_blm %>%
+  filter(as.integer(year) >= 31)
+```
+
+### Create solar dataset that excludes grid cells without solar suitability information.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_2005_solar <- grid_2005 %>%
+  filter(!is.na(solar_GHI.y))
+```
+
+### Create wind dataset that excludes grid cells without wind suitability information.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_2005_wind <- grid_2005 %>%
+  filter(!is.na(wind_windspeed120m))
+```
+
+### Create solar data subset containing only grid cells with high solar potential.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_2005_high_solar <- grid_2005 %>%
+  filter(solar_GHI.y >= 5)
+```
+
+### Create wind data subset containing only grid cells with high wind potential.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_2005_high_wind <- grid_2005 %>%
+  filter(wind_windspeed120m >= 6)
+```
+
+### Create solar data subset containing only grid cells within 3km of a border between BLM and private land. 
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_2005_solar_borders <- grid_2005_solar %>%
+  filter(distancetoborder <= 3)
+```
+
+### Create wind data subset containing only grid cells within 3km of a border between BLM and private land. 
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+grid_2005_wind_borders <- grid_2005_wind %>%
+  filter(distancetoborder <= 3)
+```
+
+### Lighten the load.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+rm(grid_blm,grid_long,grid_2005)
+gc()
+```
+
+### Run solar regressions with different controls and fixed effects.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+solar_2005_1 <- feols(MWsolar ~ percent_blm|year, data = grid_2005_solar, se = "hetero")
+
+solar_2005_2 <- feols(MWsolar ~ percent_blm|year + state, data = grid_2005_solar, se = "hetero")
+
+solar_2005_3 <- feols(MWsolar ~ percent_blm + solar_capacity_MW + solar_GHI.y + solar_distance_transmission + distancetoborder|year + state, data = grid_2005_solar, se = "hetero")
+
+solar_2005_4 <- feols(MWsolar ~ percent_blm + solar_capacity_MW + solar_GHI.y + solar_distance_transmission + distancetoborder + percent_solar_exc|year + state, data = grid_2005_solar, se = "hetero")
+
+solar_2005_5 <- feols(MWsolar ~ percent_blm + solar_capacity_MW + solar_GHI.y + solar_distance_transmission + distancetoborder + percent_solar_exc|year + county, data = grid_2005_solar, se = "hetero")
+
+solar_2005_6 <- feols(MWsolar ~ percent_blm + solar_capacity_MW + solar_GHI.y + solar_distance_transmission + distancetoborder + percent_solar_exc|year + state, data = grid_2005_high_solar, se = "hetero")
+
+solar_2005_7 <- feols(MWsolar ~ percent_blm + solar_capacity_MW + solar_GHI.y + solar_distance_transmission + distancetoborder + percent_solar_exc|year + state, data = grid_2005_solar_borders, se = "hetero")
+```
+
+### Calculate means.
+```{r}
+mean(grid_2005_solar$MWsolar)
+mean(grid_2005_high_solar$MWsolar)
+mean(grid_2005_solar_borders$MWsolar)
+```
+
+### Publish a table of results.
+```{r results = 'asis', tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+etable(solar_2005_1,solar_2005_2,solar_2005_3,solar_2005_4,solar_2005_5,solar_2005_6,solar_2005_7, adjustbox= TRUE)
+
+```
+
+### Lighten the load.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+rm(grid_2005_solar,grid_2005_high_solar,grid_2005_solar_borders)
+gc()
+```
+
+### Run wind regressions with different controls and fixed effects. 
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+wind_2005_1 <- feols(MWwind ~ percent_blm|year, data = grid_2005_wind, se = "hetero")
+
+wind_2005_2 <- feols(MWwind ~ percent_blm|year + state, data = grid_2005_wind, se = "hetero")
+
+wind_2005_3 <- feols(MWwind ~ percent_blm + wind_capacity_MW + wind_speed_100m + wind_windspeed120m + wind_distance_transmission + distancetoborder|year + state, data = grid_2005_wind, se = "hetero")
+
+wind_2005_4 <- feols(MWwind ~ percent_blm + wind_capacity_MW + wind_speed_100m + wind_windspeed120m + wind_distance_transmission + distancetoborder + percent_wind_exc|year + state, data = grid_2005_wind, se = "hetero")
+
+wind_2005_5 <- feols(MWwind ~ percent_blm + wind_capacity_MW + wind_speed_100m + wind_windspeed120m + wind_distance_transmission + distancetoborder + percent_wind_exc|year + county, data = grid_2005_wind, se = "hetero")
+
+wind_2005_6 <- feols(MWwind ~ percent_blm + wind_capacity_MW + wind_speed_100m + wind_windspeed120m + wind_distance_transmission + distancetoborder + percent_wind_exc|year + state, data = grid_2005_high_wind, se = "hetero")
+
+wind_2005_7 <- feols(MWwind ~ percent_blm + wind_capacity_MW + wind_speed_100m + wind_windspeed120m + wind_distance_transmission + distancetoborder + percent_wind_exc|year + state, data = grid_2005_wind_borders, se = "hetero")
+```
+
+### Calculate means.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+mean(grid_2005_wind$MWwind)
+mean(grid_2005_high_wind$MWwind)
+mean(grid_2005_wind_borders$MWwind)
+```
+
+### Publish a table of results.
+```{r results = 'asis', tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+etable(wind_2005_1,wind_2005_2,wind_2005_3,wind_2005_4,wind_2005_5,wind_2005_6,wind_2005_7,adjustbox= TRUE)
+```
